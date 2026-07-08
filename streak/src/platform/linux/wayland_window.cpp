@@ -10,6 +10,8 @@
 #include <sys/poll.h>
 #include <unistd.h>
 
+#include "events/window_event.h"
+
 namespace streak{
 
     static wl_registry_listener registry_listener;
@@ -39,6 +41,8 @@ namespace streak{
         wl_surface* surface = nullptr;
         xdg_surface* xdg_surface = nullptr;
         xdg_toplevel* toplevel = nullptr;
+
+        uint32_t width = 0, height = 0;
     };
 
     struct WaylandWindowGlobals{
@@ -384,11 +388,28 @@ namespace streak{
     }
 
 	static void toplevel_configure(void *data, xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, wl_array *states){
+        auto window = static_cast<WaylandWindow*>(data);
+        std::cout << "configure called" << std::endl;
+        std::cout << width << " " << height << std::endl;
 
+        auto window_data = window->get_window_data();
+        if(width > 0 || height > 0){
+            window_data->width = width;
+            window_data->height = height;
+        }else{
+            window_data->width = width;
+            window_data->height = height;
+            window->get_options()->event_dispatcher->push(std::make_shared<event::WindowResizeEvent>(width, height));
+        }
+
+        window->get_options()->event_dispatcher->push(std::make_shared<event::WindowConfiguredEvent>());
+
+        wl_surface_commit(window_data->surface);
     }
 
     static void toplevel_close(void *data, xdg_toplevel *xdg_toplevel){
         auto window = static_cast<WaylandWindow*>(data);
+        window->get_options()->event_dispatcher->push(std::make_shared<event::WindowCloseEvent>());
         WaylandWindowSystem::get().destroy_window(window);
     }
 

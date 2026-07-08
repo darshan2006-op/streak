@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+#include "events/event_dispatcher.h"
+
 namespace streak{
     class Window;
     class WindowSystem;
@@ -12,6 +14,8 @@ namespace streak{
         uint32_t width;
         uint32_t height;
         std::string title;
+
+        event::EventDispatcher* event_dispatcher;
     };
 
     class WindowSystem{
@@ -35,12 +39,13 @@ namespace streak{
 
     class Window{
         public:
-            virtual ~Window() = default;
+        Window(const Window&) = delete;
+        Window& operator=(const Window&) = delete;
+        virtual ~Window() = default;
 
             virtual bool should_close() const = 0;
         protected:
             Window() = default;
-            Window(const Window&) = delete;
     };
 
 }

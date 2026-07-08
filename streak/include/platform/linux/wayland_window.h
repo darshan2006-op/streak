@@ -68,6 +68,9 @@ namespace streak{
             void init();
 
             WaylandWindowData* get_window_data();
+            WindowOptions* get_options(){
+                return &m_options;
+            }
 
             void destroy();
 
