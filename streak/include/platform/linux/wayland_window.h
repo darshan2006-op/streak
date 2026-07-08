@@ -10,6 +10,15 @@
 
 #include <sys/eventfd.h>
 
+struct wl_display;
+struct wl_registry;
+struct wl_compositor;
+struct xdg_wm_base;
+
+struct wl_surface;
+struct xdg_surface;
+struct xdg_toplevel;
+
 namespace streak{
 
     class WaylandWindow;
@@ -19,6 +28,23 @@ namespace streak{
 
     struct WaylandWindowGlobals;
     struct WaylandWindowData;
+
+    struct WaylandWindowData{
+        wl_surface* surface = nullptr;
+        xdg_surface* xdg_surface = nullptr;
+        xdg_toplevel* toplevel = nullptr;
+
+        bool configured;
+        uint32_t width = 0, height = 0;
+    };
+
+    struct WaylandWindowGlobals{
+        wl_display* display = nullptr;
+        wl_registry* registry = nullptr;
+
+        wl_compositor* compositor = nullptr;
+        xdg_wm_base* xdg_wm_base = nullptr;
+    };
 
     class WaylandWindowSystem: public WindowSystem{
         public:
@@ -68,18 +94,20 @@ namespace streak{
             void init();
 
             WaylandWindowData* get_window_data();
+            
+            void* get_native_window_data() const override{
+                return static_cast<void*>(m_window.load(std::memory_order_acquire));
+            }
+
             WindowOptions* get_options(){
                 return &m_options;
             }
 
             void destroy();
-
-            bool should_close() const override;
         private:
             void cleanup();
 
             WindowOptions m_options;
             std::atomic<WaylandWindowData*> m_window;
-            std::atomic<bool> m_should_close;
     };
 }

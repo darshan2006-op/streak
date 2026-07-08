@@ -37,22 +37,6 @@ namespace streak{
         std::string message;
     };
 
-    struct WaylandWindowData{
-        wl_surface* surface = nullptr;
-        xdg_surface* xdg_surface = nullptr;
-        xdg_toplevel* toplevel = nullptr;
-
-        uint32_t width = 0, height = 0;
-    };
-
-    struct WaylandWindowGlobals{
-        wl_display* display = nullptr;
-        wl_registry* registry = nullptr;
-
-        wl_compositor* compositor = nullptr;
-        xdg_wm_base* xdg_wm_base = nullptr;
-    };
-
     WaylandWindowSystem::WaylandWindowSystem():m_globals(nullptr){
         m_running.store(false, std::memory_order_relaxed);
     }
@@ -347,7 +331,7 @@ namespace streak{
         destroy();
     }
 
-    WaylandWindow::WaylandWindow(const WindowOptions& options): m_options(options), m_window(nullptr), m_should_close(false) {
+    WaylandWindow::WaylandWindow(const WindowOptions& options): m_options(options), m_window(nullptr) {
 
     }
 
@@ -393,16 +377,22 @@ namespace streak{
         std::cout << width << " " << height << std::endl;
 
         auto window_data = window->get_window_data();
-        if(width > 0 || height > 0){
+        if((width > 0 || height > 0) && (width != window_data->width || height != window_data->height)){
             window_data->width = width;
             window_data->height = height;
-        }else{
-            window_data->width = width;
-            window_data->height = height;
+            
             window->get_options()->event_dispatcher->push(std::make_shared<event::WindowResizeEvent>(width, height));
+        }else{
+            window_data->width = window->get_options()->width;
+            window_data->height = window->get_options()->height;
+
+            auto data = window->get_window_data();
+            if(data->configured == false){
+                data->configured = true;
+                window->get_options()->event_dispatcher->push(std::make_shared<event::WindowConfiguredEvent>());
+            }
         }
 
-        window->get_options()->event_dispatcher->push(std::make_shared<event::WindowConfiguredEvent>());
 
         wl_surface_commit(window_data->surface);
     }
@@ -445,18 +435,13 @@ namespace streak{
         xdg_surface_add_listener(window->xdg_surface, &xdg_surface_listener_object, window);
         xdg_toplevel_add_listener(window->toplevel, &xdg_toplevel_listener_object, this);
 
-        wl_surface_commit(window->surface);
-
         m_window.store(window, std::memory_order_release);
-    }
 
-    bool WaylandWindow::should_close() const {
-        return m_should_close.load(std::memory_order_relaxed);
+        wl_surface_commit(window->surface);
     }
 
     void WaylandWindow::destroy(){
         cleanup();
-
         auto window = m_window.load(std::memory_order_acquire);
         delete window;
     }
@@ -480,8 +465,6 @@ namespace streak{
                 wl_surface_destroy(window->surface);
                 window->surface = nullptr;
             }
-
-            m_should_close.store(true, std::memory_order_relaxed);
         }
         
     }

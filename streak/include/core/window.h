@@ -29,21 +29,23 @@ namespace streak{
             virtual void destroy() = 0;
 
             virtual uint32_t get_window_count() const = 0;
-
+            
+            
             static WindowSystem& get();
-
-        protected:
+            
+            protected:
             WindowSystem() = default;
             WindowSystem(const WindowSystem&) = delete;
-    };
-
-    class Window{
-        public:
-        Window(const Window&) = delete;
-        Window& operator=(const Window&) = delete;
-        virtual ~Window() = default;
-
-            virtual bool should_close() const = 0;
+        };
+        
+        class Window{
+            public:
+            Window(const Window&) = delete;
+            Window& operator=(const Window&) = delete;
+            virtual ~Window() = default;
+            
+            virtual void* get_native_window_data() const = 0;
+            
         protected:
             Window() = default;
     };

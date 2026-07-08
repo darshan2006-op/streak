@@ -6,6 +6,7 @@ add_library(streak
     "src/core/entry_point.cpp"
     "src/core/platform.cpp"
     "src/core/window.cpp"
+    "src/graphics/graphics_context.cpp"
 )
 
 target_include_directories(streak PUBLIC "include")
@@ -21,6 +22,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     set(GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
+    find_package(OpenGL REQUIRED)
     find_package(PkgConfig REQUIRED)
     find_program(WAYLAND_SCANNER
         NAMES wayland-scanner
@@ -29,6 +31,8 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     pkg_check_modules(WAYLAND_CLIENT REQUIRED IMPORTED_TARGET wayland-client)
     pkg_check_modules(WAYLAND_PROTOCOLS REQUIRED wayland-protocols)
+    pkg_check_modules(WAYLAND_EGL REQUIRED IMPORTED_TARGET wayland-egl)
+    pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
 
     pkg_get_variable(WAYLAND_PROTOCOLS_DIR wayland-protocols pkgdatadir)
 
@@ -73,10 +77,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     target_include_directories(streak PRIVATE ${GENERATED_DIR})
 
-    target_link_libraries(streak PRIVATE PkgConfig::WAYLAND_CLIENT)
+    target_link_libraries(streak PRIVATE
+            PkgConfig::WAYLAND_CLIENT
+            PkgConfig::WAYLAND_EGL
+            PkgConfig::EGL
+            OpenGL::GL
+    )
     
     target_sources(streak PRIVATE
         "src/platform/linux/wayland_window.cpp"
+        "src/platform/linux/opengl/opengl_wayland_context.cpp"
         ${GENERATED_DIR}/xdg-shell-protocol.c
     )
 else()
