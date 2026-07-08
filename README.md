@@ -1,6 +1,6 @@
 # Streak
 
-streak is a cross game engine.
+streak is a cross platform graphics and compute engine.
 
 # Build Intructions
 streak uses cmake for building the project 
