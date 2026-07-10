@@ -56,7 +56,8 @@ namespace streak{
             Window* create_window(const WindowOptions& options) override;
             void destroy_window(Window* window) override;
 
-            uint32_t get_window_count() const override{
+            uint32_t get_window_count() override{
+                std::unique_lock lock(m_data_mutex);
                 return static_cast<uint32_t>(m_windows.size());
             }
 
@@ -76,12 +77,13 @@ namespace streak{
             void drain_tasks();
 
             std::vector<WaylandWindowPtr> m_windows;
-            WaylandWindowGlobals* m_globals;
             std::queue<std::function<void()>> m_task_queue;
-            std::mutex m_task_mutex;
+            WaylandWindowGlobals* m_globals;
+            int m_event_fd;
+
+            std::mutex m_data_mutex;
             std::thread m_event_thread;
             std::atomic<bool> m_running;
-            int m_event_fd;
     };
 
     class WaylandWindow: public Window{
@@ -95,8 +97,9 @@ namespace streak{
 
             WaylandWindowData* get_window_data();
             
-            void* get_native_window_data() const override{
-                return static_cast<void*>(m_window.load(std::memory_order_acquire));
+            void* get_native_window_data() override{
+                std::unique_lock lock(m_window_mutex);
+                return static_cast<void*>(m_window);
             }
 
             WindowOptions* get_options(){
@@ -108,6 +111,7 @@ namespace streak{
             void cleanup();
 
             WindowOptions m_options;
-            std::atomic<WaylandWindowData*> m_window;
+            std::mutex m_window_mutex;
+            WaylandWindowData* m_window;
     };
 }

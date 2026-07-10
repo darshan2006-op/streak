@@ -46,15 +46,15 @@ namespace streak{
                     if(!event || !m_running.load(std::memory_order_acquire)) {
                         break;
                     }
-                    dispatch_event(*event);
+                    (*event)();
                 }
                 
                 {
                     std::lock_guard<std::mutex> lock(m_context_drain_mutex);
-                    for(auto& event : m_pending_events) {
-                        dispatch_event(event);
+                    for(auto& command : m_pending_commands) {
+                        dispatch_command(command);
                     }
-                    m_pending_events.clear();
+                    m_pending_commands.clear();
                     m_has_pending_frames.store(false, std::memory_order_release);
                 }
 
@@ -65,6 +65,8 @@ namespace streak{
                     break;
                 }
             }
+
+            this->m_frame_in_flight_semaphore.release();
 
             m_context->destroy();
             m_context.reset();
@@ -93,41 +95,42 @@ namespace streak{
 
         // No specific actions needed here for now.
         std::lock_guard<std::mutex> lock(m_context_drain_mutex);
-        m_pending_events = std::move(m_recording_events);
+        m_pending_commands = std::move(m_recording_commands);
         m_has_pending_frames.store(true, std::memory_order_release);
         m_context_drain_cv.notify_one();
-        m_recording_events.clear();
+        m_recording_commands.clear();
     }
 
     void OpenGLRenderer::resize(uint32_t width, uint32_t height) {
-        push_event(std::make_shared<RendererEvent>(RendererEvent{.type = RendererEventType::Resize, .resize = {width, height}}));
+        push_event(std::make_shared<RendererEvent>([this, width, height]() {
+            if (m_context) {
+                m_context->resize(width, height);
+            }
+        }));
     }
 
     void OpenGLRenderer::clear(float r, float g, float b, float a) {
-        push_command(RendererEvent{.type = RendererEventType::Clear, .clear = {r, g, b, a}});
+        push_command(RendererCommand{.type = RendererCommandType::Clear, .clear = {r, g, b, a}});
     }
 
-    void OpenGLRenderer::dispatch_event(const RendererEvent& event) {
-        switch (event.type) {
-            case RendererEventType::Resize:
-                m_context->resize(event.resize.width, event.resize.height);
-                break;
-            case RendererEventType::Clear:
-                glClearColor(event.clear.r, event.clear.g, event.clear.b, event.clear.a);
+    void OpenGLRenderer::dispatch_command(const RendererCommand& command) {
+        switch (command.type) {
+            case RendererCommandType::Clear:
+                glClearColor(command.clear.r, command.clear.g, command.clear.b, command.clear.a);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
                 break;
             default:
-                std::cerr << "Unknown renderer event type." << std::endl;
+                std::cerr << "Unknown renderer command type." << std::endl;
                 break;
         }
     }
 
-    void OpenGLRenderer::push_command(RendererEvent event) {
+    void OpenGLRenderer::push_command(RendererCommand command) {
         std::lock_guard<std::mutex> lock(m_context_drain_mutex);
         if(!m_running.load(std::memory_order_acquire)) {
             return;
         }
-        m_recording_events.push_back(event);
+        m_recording_commands.push_back(command);
     }
 
     void OpenGLRenderer::push_event(const std::shared_ptr<RendererEvent>& event) {
@@ -163,5 +166,4 @@ namespace streak{
 
         std::cout << "OpenGLRenderer destroyed and render thread stopped." << std::endl;
     }
-
 }

@@ -28,7 +28,7 @@ namespace streak{
             virtual void init() = 0;
             virtual void destroy() = 0;
 
-            virtual uint32_t get_window_count() const = 0;
+            virtual uint32_t get_window_count() = 0;
             
             
             static WindowSystem& get();
@@ -44,7 +44,7 @@ namespace streak{
             Window& operator=(const Window&) = delete;
             virtual ~Window() = default;
             
-            virtual void* get_native_window_data() const = 0;
+            virtual void* get_native_window_data() = 0;
             
         protected:
             Window() = default;

@@ -53,7 +53,7 @@ namespace streak{
 
     void WaylandWindowSystem::push_task(std::function<void()> task){
         {
-            std::lock_guard<std::mutex> task_lock(m_task_mutex);
+            std::lock_guard<std::mutex> task_lock(m_data_mutex);
             m_task_queue.push(task);
         }
         
@@ -110,37 +110,37 @@ namespace streak{
 
     void WaylandWindowSystem::init() {
 
-        m_globals = new WaylandWindowGlobals();
-
-        this->m_event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-
+        {
+            std::unique_lock lock(m_data_mutex);
+            m_globals = new WaylandWindowGlobals();
+            this->m_event_fd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+        }
+            
         bool is_ready = false;
         std::mutex ready_mutex;
         std::condition_variable ready_cv;
 
         m_event_thread = std::thread([this, &is_ready, &ready_mutex, &ready_cv](){
-            auto globals = this->m_globals;
-
+            auto globals = this->get_globals();
+            
             auto result = initialize_wayland_globals(globals);
-
             std::cout << result.message << std::endl;
-
+            
             if(result.error != WaylandGlobalsError::None){
                 cleanup();
                 return;
             }
             wl_display_roundtrip(globals->display);
-
+            
             if (!globals->compositor || !globals->xdg_wm_base)
             {
                 cleanup();
                 return;
             }
-            
+                
             xdg_wm_base_add_listener(globals->xdg_wm_base, &wm_base_listener, nullptr);
 
             int wayland_fd = wl_display_get_fd(globals->display);
-            
             pollfd fds[2];
             
             fds[0].fd = wayland_fd;
@@ -206,6 +206,11 @@ namespace streak{
                 
                 wl_display_dispatch_pending(globals->display);
             }
+
+            for(auto& window : m_windows){
+                this->destroy_window(window.get());
+                window.reset();
+            }
             
             cleanup();
 
@@ -220,7 +225,11 @@ namespace streak{
     }
 
     void WaylandWindowSystem::destroy() {
-        if(!m_globals) return;
+        {
+            std::unique_lock lock(m_data_mutex);
+            if(!m_globals) return;
+        }
+
         std::cout << "destroying" << std::endl;
 
         m_running.store(false, std::memory_order_relaxed);
@@ -238,7 +247,7 @@ namespace streak{
         for(;;){
             std::function<void()> task;
             {
-                std::lock_guard<std::mutex> task_lock(m_task_mutex);
+                std::lock_guard<std::mutex> task_lock(m_data_mutex);
                 if(m_task_queue.empty()) break;
                 task = std::move(m_task_queue.front());
                 m_task_queue.pop();
@@ -253,8 +262,10 @@ namespace streak{
     }
 
     void WaylandWindowSystem::cleanup() {
-        std::cout << "cleaning up" << std::endl;
+        std::unique_lock lock(m_data_mutex);
+        
         if(m_globals){
+            std::cout << "cleaning up wayland window system" << std::endl;
 
             if(m_globals->xdg_wm_base){
                 xdg_wm_base_destroy(m_globals->xdg_wm_base);
@@ -282,11 +293,15 @@ namespace streak{
     }
 
     Window* WaylandWindowSystem::create_window(const WindowOptions& options){
+        
         auto window = std::make_unique<WaylandWindow>(options);
-
+        
         auto raw = window.get();
-
-        m_windows.emplace_back(std::move(window));
+        
+        {
+            std::unique_lock lock(m_data_mutex);
+            m_windows.emplace_back(std::move(window));
+        }
 
         std::mutex created_mutex;
         std::condition_variable created_cv;
@@ -313,17 +328,24 @@ namespace streak{
     }
 
     WaylandWindowData* WaylandWindow::get_window_data(){
-        auto window = m_window.load(std::memory_order_acquire);
+        auto window = m_window;
         return window;
     }
 
     void WaylandWindowSystem::destroy_window(Window* window){
+        if(!window) {
+            std::cout << "window is null (double free)" << std::endl;
+            return;
+        }
         auto wayland_window = static_cast<WaylandWindow*>(window);
 
         push_task([this, wayland_window](){
             wayland_window->destroy();
-            m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
+            {
+                std::unique_lock lock(m_data_mutex);
+                m_windows.erase(std::remove_if(m_windows.begin(), m_windows.end(),
                 [&](auto& w){ return w.get() == wayland_window; }), m_windows.end());
+            }
         });
     }
 
@@ -436,19 +458,22 @@ namespace streak{
         xdg_surface_add_listener(window->xdg_surface, &xdg_surface_listener_object, window);
         xdg_toplevel_add_listener(window->toplevel, &xdg_toplevel_listener_object, this);
 
-        m_window.store(window, std::memory_order_release);
+        m_window = window;
 
         wl_surface_commit(window->surface);
     }
 
     void WaylandWindow::destroy(){
+        std::unique_lock lock(m_window_mutex);
+
         cleanup();
-        auto window = m_window.load(std::memory_order_acquire);
+        auto window = m_window;
         delete window;
+        m_window = nullptr;
     }
 
     void WaylandWindow::cleanup(){
-        auto window = m_window.load(std::memory_order_acquire);
+        auto window = m_window;
         if (window)
         {
             if(window->toplevel){

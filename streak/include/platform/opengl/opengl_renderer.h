@@ -8,23 +8,18 @@
 #include <atomic>
 #include <condition_variable>
 #include <thread>
+#include <functional>
 
 namespace streak{
 
-    enum class RendererEventType{
-        Resize,
-        Present,
+    enum class RendererCommandType{
         Clear,
     };
 
-    struct RendererEvent{
-        RendererEventType type;
+    struct RendererCommand{
+        RendererCommandType type;
 
         union{
-            struct{
-                uint32_t width;
-                uint32_t height;
-            } resize;
 
             struct
             {
@@ -39,6 +34,9 @@ namespace streak{
     
     class OpenGLRenderer : public Renderer{
         public:
+            using RendererCommand = ::streak::RendererCommand;
+            using RendererEvent = std::function<void()>;
+
             virtual ~OpenGLRenderer();
             OpenGLRenderer(const OpenGLRenderer&) = delete;
             OpenGLRenderer& operator=(const OpenGLRenderer&) = delete;
@@ -52,15 +50,15 @@ namespace streak{
             virtual void destroy() override;
         
         protected:
-            void dispatch_event(const RendererEvent& event);
+            void dispatch_command(const RendererCommand& command);
             void push_event(const std::shared_ptr<RendererEvent>& event);
-            void push_command(RendererEvent event);
+            void push_command(RendererCommand command);
             std::atomic<bool> m_has_pending_frames;
             CountingSemaphore m_frame_in_flight_semaphore;
             GraphicsContextPtr m_context;
             event::EventQueue<RendererEvent> m_event_queue;
-            std::vector<RendererEvent> m_recording_events;
-            std::vector<RendererEvent> m_pending_events;
+            std::vector<RendererCommand> m_recording_commands;
+            std::vector<RendererCommand> m_pending_commands;
             std::condition_variable m_context_drain_cv;
             std::mutex m_context_drain_mutex;
             std::thread m_render_thread;
