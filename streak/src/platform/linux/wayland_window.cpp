@@ -303,27 +303,11 @@ namespace streak{
             m_windows.emplace_back(std::move(window));
         }
 
-        std::mutex created_mutex;
-        std::condition_variable created_cv;
-        bool created_flag = false;
-
-        push_task([raw, &created_mutex, &created_cv, &created_flag](){
+        push_task([raw](){
             raw->init();
-            {
-                std::unique_lock created_lock(created_mutex);
-                created_flag = true;
-            }
-            created_cv.notify_all();
-            std::cout << "created window" << std::endl;
         });
 
-        {
-            std::unique_lock created_lock(created_mutex);
-            created_cv.wait(created_lock, [&created_flag](){
-                return created_flag;
-            });
-        }
-
+        raw->wait_for_configure();
         return raw;
     }
 
@@ -395,8 +379,8 @@ namespace streak{
 
 	static void toplevel_configure(void *data, xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, wl_array *states){
         auto window = static_cast<WaylandWindow*>(data);
-        std::cout << "configure called" << std::endl;
-        std::cout << width << " " << height << std::endl;
+
+        std::unique_lock lock(window->get_window_mutex());
 
         auto window_data = window->get_window_data();
         if((width > 0 || height > 0) && (width != window_data->width || height != window_data->height)){
@@ -410,19 +394,22 @@ namespace streak{
 
             auto data = window->get_window_data();
             if(data->configured == false){
-                data->configured = true;
-                window->get_options()->event_dispatcher->push(std::make_shared<event::WindowConfiguredEvent>());
+                    data->configured = true;
+                    window->get_options()->event_dispatcher->push(std::make_shared<event::WindowConfiguredEvent>());
+                window->notify_configured();
             }
         }
-
-
+        
         wl_surface_commit(window_data->surface);
     }
 
     static void toplevel_close(void *data, xdg_toplevel *xdg_toplevel){
         auto window = static_cast<WaylandWindow*>(data);
+
         window->get_options()->event_dispatcher->push(std::make_shared<event::WindowCloseEvent>());
-        WaylandWindowSystem::get().destroy_window(window);
+
+        window->wait_for_close();
+        // WaylandWindowSystem::get().destroy_window(window);
         std::cout << "close called" << std::endl;
     }
 
@@ -445,9 +432,10 @@ namespace streak{
     };
 
     void WaylandWindow::init(){
-        auto window = new WaylandWindowData();
-
-        auto result = initialize_window(window);
+        m_window = new WaylandWindowData();
+        auto result = initialize_window(m_window);
+        auto window = m_window;
+        m_closed = false;
 
         if(result.error != WaylandWindowError::None){
             std::cout << result.message << std::endl;

@@ -6,6 +6,9 @@ add_library(streak
     "src/core/entry_point.cpp"
     "src/core/platform.cpp"
     "src/core/window.cpp"
+
+    "src/mt_sync/semaphore.cpp"
+
     "src/graphics/graphics_context.cpp"
     "src/graphics/renderer.cpp"
 
@@ -89,6 +92,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     
     target_sources(streak PRIVATE
         "src/platform/linux/wayland_window.cpp"
+        "src/platform/linux/linux_semaphore.cpp"
         "src/platform/linux/opengl/opengl_wayland_context.cpp"
         ${GENERATED_DIR}/xdg-shell-protocol.c
     )

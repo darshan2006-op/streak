@@ -1,67 +1,54 @@
 #pragma once
 
 #include "graphics/renderer.h"
-#include "graphics/graphics_context.h"
 #include "events/event_queue.h"
-#include "core/counting_semaphore.h"
+#include "mt_sync/semaphore.h"
 
+#include <thread>
 #include <atomic>
 #include <condition_variable>
-#include <thread>
-#include <functional>
+#include <mutex>
 
 namespace streak{
-
-    enum class RendererCommandType{
-        Clear,
-    };
-
-    struct RendererCommand{
-        RendererCommandType type;
-
-        union{
-
-            struct
-            {
-                float r;
-                float g;
-                float b;
-                float a;
-            } clear;
-        };
-        
-    };
+    using Task = std::function<void()>; 
+    using Command = std::function<void()>;
     
-    class OpenGLRenderer : public Renderer{
+    using TaskQueue = event::EventQueue<Task>;
+    using CommandList = std::vector<Command>;
+
+    struct RenderCommands
+    {
+        CommandList commands;
+    };
+
+    class OpenGLRenderer : public Renderer {
         public:
-            using RendererCommand = ::streak::RendererCommand;
-            using RendererEvent = std::function<void()>;
-
-            virtual ~OpenGLRenderer();
-            OpenGLRenderer(const OpenGLRenderer&) = delete;
-            OpenGLRenderer& operator=(const OpenGLRenderer&) = delete;
             OpenGLRenderer();
+            virtual ~OpenGLRenderer() ;
 
-            virtual void init(Window* context) override;
-            virtual void begin_frame() override;
-            virtual void end_frame() override;
-            virtual void resize(uint32_t width, uint32_t height) override;
-            virtual void clear(float r, float g, float b, float a) override;
-            virtual void destroy() override;
-        
-        protected:
-            void dispatch_command(const RendererCommand& command);
-            void push_event(const std::shared_ptr<RendererEvent>& event);
-            void push_command(RendererCommand command);
-            std::atomic<bool> m_has_pending_frames;
-            CountingSemaphore m_frame_in_flight_semaphore;
+            void init(Window* context) override;
+            void destroy() override;
+
+            void begin_frame() override;
+            
+            void resize(uint32_t width, uint32_t height) override;
+            void clear(float r, float g, float b, float a) override;
+            
+            void end_frame() override;
+        private:
+            void push_render_command(const Command& command);
+            void push_event(const Task& task);
+
             GraphicsContextPtr m_context;
-            event::EventQueue<RendererEvent> m_event_queue;
-            std::vector<RendererCommand> m_recording_commands;
-            std::vector<RendererCommand> m_pending_commands;
-            std::condition_variable m_context_drain_cv;
-            std::mutex m_context_drain_mutex;
+            TaskQueue m_task_queue;
+            std::queue<RenderCommands> m_command_queue;
+
             std::thread m_render_thread;
-            std::atomic<bool> m_running;       
+            std::mutex m_data_mutex;
+            std::mutex m_loop_mutex;
+            std::condition_variable m_loop_cv;
+            std::unique_ptr<Semaphore> m_frame_semaphore;
+
+            std::atomic<bool> m_running, m_initialized;
     };
 }

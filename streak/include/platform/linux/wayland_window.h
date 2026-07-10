@@ -1,3 +1,4 @@
+#pragma once
 #include "core/window.h"
 
 #include <atomic>
@@ -106,12 +107,45 @@ namespace streak{
                 return &m_options;
             }
 
+            void wait_for_configure(){
+                std::unique_lock lock(m_window_mutex);
+                m_window_state_cv.wait(lock, [this](){
+                    auto window = m_window;
+                    return window && window->configured;
+                });
+            }
+
+            void wait_for_close(){
+                std::unique_lock lock(m_window_mutex);
+                m_window_state_cv.wait(lock, [this](){
+                    return m_closed;
+                });
+            }
+
+            void notify_close() override{
+                {
+                    std::unique_lock lock(m_window_mutex);
+                    m_closed = true;
+                }
+                notify_configured();
+            }
+
+            std::mutex& get_window_mutex(){
+                return m_window_mutex;
+            }
+
+            void notify_configured(){
+                m_window_state_cv.notify_all();
+            }
+
             void destroy();
         private:
             void cleanup();
 
             WindowOptions m_options;
             std::mutex m_window_mutex;
+            std::condition_variable m_window_state_cv;
+            bool m_closed ;
             WaylandWindowData* m_window;
     };
 }

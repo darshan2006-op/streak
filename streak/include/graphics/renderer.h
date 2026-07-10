@@ -14,11 +14,14 @@ namespace streak{
             static RendererPtr create(GraphicsContextType type);
 
             virtual void init(Window* context) = 0;
+            virtual void destroy() = 0;
+
             virtual void begin_frame() = 0;
-            virtual void end_frame() = 0;
+            
             virtual void resize(uint32_t width, uint32_t height) = 0;
             virtual void clear(float r, float g, float b, float a) = 0;
-            virtual void destroy() = 0;
+            
+            virtual void end_frame() = 0;
         protected:
             Renderer() = default;
     };

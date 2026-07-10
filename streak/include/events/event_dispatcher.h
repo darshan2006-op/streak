@@ -39,7 +39,7 @@ namespace streak{
                 }
             protected:
                 EventHandler m_handler;
-                EventQueue<Event> m_event_queue;
+                EventQueue<std::shared_ptr<Event>> m_event_queue;
         };
     }
 }

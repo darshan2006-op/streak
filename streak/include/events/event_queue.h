@@ -20,7 +20,7 @@ namespace streak{
                     return m_is_empty.load(std::memory_order_acquire);
                 }
 
-                void push(const std::shared_ptr<T>& e) {
+                void push(const T& e) {
                     std::unique_lock push_lock(m_queue_mutex);
 
                     m_event_queue.push(e);
@@ -30,13 +30,26 @@ namespace streak{
                     }
                 }
 
-                std::shared_ptr<T> try_pop() {
+                T try_pop() {
                     std::lock_guard lock(m_queue_mutex);
                     if (m_event_queue.empty()) {
                         return nullptr;
                     }
                     auto event = std::move(m_event_queue.front());
                     m_event_queue.pop();
+                    return event;
+                }
+
+                T pop() {
+                    std::unique_lock lock(m_queue_mutex);
+                    if (m_event_queue.empty()) {
+                        return nullptr;
+                    }
+                    auto event = std::move(m_event_queue.front());
+                    m_event_queue.pop();
+                    if (m_event_queue.empty()) {
+                        change_empty(true);
+                    }
                     return event;
                 }
 
@@ -50,7 +63,7 @@ namespace streak{
                     m_is_empty.store(value, std::memory_order_release);
                 }
 
-                std::queue<std::shared_ptr<T>> m_event_queue;
+                std::queue<T> m_event_queue;
                 std::mutex m_queue_mutex;
                 std::atomic_bool m_is_empty;
         };

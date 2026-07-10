@@ -30,7 +30,6 @@ namespace streak{
 
             virtual uint32_t get_window_count() = 0;
             
-            
             static WindowSystem& get();
             
             protected:
@@ -45,7 +44,7 @@ namespace streak{
             virtual ~Window() = default;
             
             virtual void* get_native_window_data() = 0;
-            
+            virtual void notify_close() = 0;
         protected:
             Window() = default;
     };
