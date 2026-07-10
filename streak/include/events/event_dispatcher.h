@@ -28,8 +28,10 @@ namespace streak{
                     if(m_handler == nullptr) return;
                     while (!m_event_queue.is_empty())
                     {
-                        auto e = m_event_queue.pop();
-                        
+                        auto e = m_event_queue.try_pop();
+                        if (!e) {
+                            break;
+                        }
                         if(m_handler(e)){
                             e->handled();
                         }
@@ -37,7 +39,7 @@ namespace streak{
                 }
             protected:
                 EventHandler m_handler;
-                EventQueue m_event_queue;
+                EventQueue<Event> m_event_queue;
         };
     }
 }

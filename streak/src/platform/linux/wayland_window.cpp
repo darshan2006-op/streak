@@ -401,6 +401,7 @@ namespace streak{
         auto window = static_cast<WaylandWindow*>(data);
         window->get_options()->event_dispatcher->push(std::make_shared<event::WindowCloseEvent>());
         WaylandWindowSystem::get().destroy_window(window);
+        std::cout << "close called" << std::endl;
     }
 
     static void toplevel_configure_bounds(void *data, xdg_toplevel *xdg_toplevel, int32_t width, int32_t height){

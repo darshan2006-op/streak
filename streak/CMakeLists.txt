@@ -7,6 +7,9 @@ add_library(streak
     "src/core/platform.cpp"
     "src/core/window.cpp"
     "src/graphics/graphics_context.cpp"
+    "src/graphics/renderer.cpp"
+
+    "src/platform/opengl/opengl_renderer.cpp"
 )
 
 target_include_directories(streak PUBLIC "include")
