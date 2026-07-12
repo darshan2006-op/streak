@@ -6,6 +6,8 @@
 #include <wayland-egl.h>
 #include <EGL/egl.h>
 
+#include "glad/gl.h"
+
 #include "platform/linux/wayland_window.h"
 
 
@@ -132,6 +134,9 @@ namespace streak{
         }
         eglBindAPI(EGL_OPENGL_API);
         make_current();
+        if(gladLoadGL(eglGetProcAddress) == 0){
+            std::cerr << "Failed to initialize GLAD" << std::endl;
+        }
     }
 
     void OpenGLWaylandContext::make_current(){

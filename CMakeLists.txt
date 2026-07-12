@@ -4,3 +4,4 @@ project(workspace)
 
 add_subdirectory("sandbox")
 add_subdirectory("streak")
+add_subdirectory("glad")

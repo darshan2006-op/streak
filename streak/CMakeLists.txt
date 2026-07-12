@@ -11,11 +11,15 @@ add_library(streak
 
     "src/graphics/graphics_context.cpp"
     "src/graphics/renderer.cpp"
+    "src/graphics/pipeline.cpp"
+    "src/graphics/geometry.cpp"
 
     "src/platform/opengl/opengl_renderer.cpp"
 )
 
 target_include_directories(streak PUBLIC "include")
+
+target_link_libraries(streak PRIVATE glad)
 
 if(WIN32)
     message(STATUS "Windows platform detected")
